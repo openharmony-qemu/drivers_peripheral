@@ -1,0 +1,21 @@
+--- a/drivers/peripheral/audio/supportlibs/alsa_adapter/src/alsa_snd_render.c
++++ b/drivers/peripheral/audio/supportlibs/alsa_adapter/src/alsa_snd_render.c
+@@ -254,6 +254,18 @@
+     }
+ 
+     /* write the parameters to the playback device */
++    // Timestamp observation only: preserve this handle's existing audio and
++    // scheduling parameters, and commit the mode/type in the same SW_PARAMS.
++    ret = snd_pcm_sw_params_set_tstamp_type(handle, swParams, SND_PCM_TSTAMP_TYPE_MONOTONIC);
++    if (ret < 0) {
++        AUDIO_FUNC_LOGE("snd_pcm_sw_params_set_tstamp_type failed: %{public}d", ret);
++        return HDF_FAILURE;
++    }
++    ret = snd_pcm_sw_params_set_tstamp_mode(handle, swParams, SND_PCM_TSTAMP_ENABLE);
++    if (ret < 0) {
++        AUDIO_FUNC_LOGE("snd_pcm_sw_params_set_tstamp_mode failed: %{public}d", ret);
++        return HDF_FAILURE;
++    }
+     ret = snd_pcm_sw_params(handle, swParams);
+     if (ret < 0) {
+         AUDIO_FUNC_LOGE("Unable to set sw params for playback: %{public}s", snd_strerror(ret));
