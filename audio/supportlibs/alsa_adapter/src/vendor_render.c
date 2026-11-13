@@ -51,6 +51,7 @@ static int32_t RenderInitImpl(struct AlsaRender *renderIns)
 static int32_t RenderSelectSceneImpl(struct AlsaRender *renderIns, const struct AudioHwRenderParam *handleData)
 {
     CHECK_NULL_PTR_RETURN_DEFAULT(renderIns);
+    CHECK_NULL_PTR_RETURN_DEFAULT(handleData);
     renderIns->descPins = handleData->renderMode.hwInfo.deviceDescript.pins;
     return HDF_SUCCESS;
 }
@@ -242,4 +243,10 @@ int32_t RenderOverrideFunc(struct AlsaRender *renderIns)
     }
 
     return HDF_SUCCESS;
+}
+
+int32_t RenderGetSceneDev(enum AudioCategory scene)
+{
+    (void)scene;
+    return -1;
 }

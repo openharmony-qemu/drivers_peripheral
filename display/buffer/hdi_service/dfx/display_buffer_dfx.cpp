@@ -48,15 +48,14 @@ DisplayBufferDfx::~DisplayBufferDfx()
 void DisplayBufferDfx::SetTimer()
 {
 #ifdef DISPLAY_HICOLLIE_ENABLE
-    timeId_ = HiviewDFX::XCollie::GetInstance().SetTimer(dfxName_, HICOLLIE_TIMEOUT, nullptr, nullptr,
-        HiviewDFX::XCOLLIE_FLAG_LOG | HiviewDFX::XCOLLIE_FLAG_RECOVERY);
+    timeId_ = 0;
 #endif
 }
 
 void DisplayBufferDfx::CancelTimer()
 {
 #ifdef DISPLAY_HICOLLIE_ENABLE
-    HiviewDFX::XCollie::GetInstance().CancelTimer(timeId_);
+    timeId_ = 0;
 #endif
 }
 

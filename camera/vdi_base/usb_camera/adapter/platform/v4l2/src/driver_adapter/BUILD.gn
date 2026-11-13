@@ -42,6 +42,9 @@ ohos_shared_library("usb_camera_v4l2_adapter") {
   if (drivers_peripheral_camera_feature_usb) {
     defines += [ "CAMERA_BUILT_ON_USB" ]
   }
+  if (drivers_peripheral_camera_qemu_vivid_capture) {
+    defines += [ "QEMU_VIVID_CAPTURE_ENABLED" ]
+  }
   sources = [
     "$camera_path_vdi/adapter/platform/v4l2/src/driver_adapter/src/v4l2_buffer.cpp",
     "$camera_path_vdi/adapter/platform/v4l2/src/driver_adapter/src/v4l2_control.cpp",

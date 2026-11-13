@@ -471,6 +471,24 @@ int32_t AudioOutputRenderOpen(
     return HDF_SUCCESS;
 }
 
+static int32_t AudioOutputRenderWriteAccepted(
+    const struct DevHandle *handle, int cmdId, struct AudioHwRenderParam *handleData)
+{
+    CHECK_NULL_PTR_RETURN_DEFAULT(handleData);
+    handleData->writeAcceptedBytes = 0;
+    handleData->writeRetryable = false;
+    struct AlsaRender *renderIns = RenderGetInstance(handleData->renderMode.hwInfo.adapterName);
+    CHECK_NULL_PTR_RETURN_DEFAULT(renderIns);
+
+    int32_t ret = RenderWriteAccepted(renderIns, handleData, &handleData->writeAcceptedBytes);
+    handleData->writeRetryable = (ret == ALSA_RENDER_WRITE_RETRYABLE);
+    if (ret != HDF_SUCCESS) {
+        AUDIO_FUNC_LOGE("Render write frame failed after accepting a prefix");
+        return HDF_FAILURE;
+    }
+    return HDF_SUCCESS;
+}
+
 int32_t AudioOutputRenderWrite(
     const struct DevHandle *handle, int cmdId, const struct AudioHwRenderParam *handleData)
 {
@@ -611,7 +629,7 @@ int32_t AudioInterfaceLibOutputRender(
             break;
         case AUDIO_DRV_PCM_IOCTL_WRITE:
             pthread_mutex_lock(&g_mutex);
-            ret = AudioOutputRenderWrite(handle, cmdId, handleData);
+            ret = AudioOutputRenderWriteAccepted(handle, cmdId, handleData);
             pthread_mutex_unlock(&g_mutex);
             break;
         case AUDIO_DRV_PCM_IOCTRL_STOP:

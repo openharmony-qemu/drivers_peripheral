@@ -30,7 +30,7 @@ if (defined(ohos_lite)) {
   }
 } else if (is_standard_system) {
   group("camera_hal") {
-    if (target_cpu == "x86_64" && !is_emulator) {
+    if (target_cpu == "x86_64" && !is_emulator && !drivers_peripheral_camera_feature_usb) {
       deps = []
     } else {
       deps = [
@@ -55,7 +55,7 @@ if (defined(ohos_lite)) {
     }
   }
   group("camera_hal_unittest") {
-    if (target_cpu == "x86_64" && !is_emulator) {
+    if (target_cpu == "x86_64" && !is_emulator && !drivers_peripheral_camera_feature_usb) {
       deps = []
     } else {
       testonly = true

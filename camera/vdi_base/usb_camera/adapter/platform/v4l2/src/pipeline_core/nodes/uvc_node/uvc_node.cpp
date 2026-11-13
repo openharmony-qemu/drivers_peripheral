@@ -103,7 +103,14 @@ RetCode UvcNode::Start(const int32_t streamId)
             return RC_ERROR;
         }
         cameraformat_ = static_cast<uint32_t>(it->format_.format_);
+#ifdef QEMU_VIVID_CAPTURE_ENABLED
+        // BLOB is the encoded output, not proof that the device provides
+        // MJPEG input. Vivid's actual YUYV source feeds CodecNode's encoder.
+        // Preserve the existing MJPEG preference when it is advertised.
+        uvcSourcePixformat_ = V4L2_PIX_FMT_YUYV;
+#else
         uvcSourcePixformat_ = (cameraformat_ == CAMERA_FORMAT_BLOB ? V4L2_PIX_FMT_MJPEG : V4L2_PIX_FMT_YUYV);
+#endif
         if (deviceManager_->CheckFormatSupportMjpeg(ConvertCameraId(cameraId_), wide_, high_)) {
             uvcSourcePixformat_ = V4L2_PIX_FMT_MJPEG;
         }

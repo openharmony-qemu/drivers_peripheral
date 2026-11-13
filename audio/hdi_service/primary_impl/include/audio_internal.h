@@ -244,6 +244,9 @@ struct AudioHwRenderMode {
 struct AudioHwRenderParam {
     struct AudioHwRenderMode renderMode;
     struct AudioFrameRenderMode frameRenderMode;
+    /* Output only for the current WRITE; never a hardware playback position. */
+    uint64_t writeAcceptedBytes;
+    bool writeRetryable;
 };
 
 struct ErrorDump {
@@ -269,6 +272,8 @@ struct AudioHwRender {
     struct DevHandle *devCtlHandle;             // Bind Ctl handle
     struct HdfRemoteService *proxyRemoteHandle; // proxyPriRemoteHandle
     struct ErrorLog errorLog;
+    /* Invalid WRITE result: requires release and a newly allocated instance. */
+    bool writeAcceptanceUncertain;
 };
 
 struct AudioHwCaptureMode {

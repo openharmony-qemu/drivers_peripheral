@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include <stdint.h>
 #include "alsa_soundcard.h"
 #include "alsa_snd_render.h"
 #include "osal_time.h"
@@ -253,6 +254,18 @@ static int32_t SetSWParams(struct AlsaSoundCard *cardIns)
     }
 
     /* write the parameters to the playback device */
+    // Timestamp observation only: preserve this handle's existing audio and
+    // scheduling parameters, and commit the mode/type in the same SW_PARAMS.
+    ret = snd_pcm_sw_params_set_tstamp_type(handle, swParams, SND_PCM_TSTAMP_TYPE_MONOTONIC);
+    if (ret < 0) {
+        AUDIO_FUNC_LOGE("snd_pcm_sw_params_set_tstamp_type failed: %{public}d", ret);
+        return HDF_FAILURE;
+    }
+    ret = snd_pcm_sw_params_set_tstamp_mode(handle, swParams, SND_PCM_TSTAMP_ENABLE);
+    if (ret < 0) {
+        AUDIO_FUNC_LOGE("snd_pcm_sw_params_set_tstamp_mode failed: %{public}d", ret);
+        return HDF_FAILURE;
+    }
     ret = snd_pcm_sw_params(handle, swParams);
     if (ret < 0) {
         AUDIO_FUNC_LOGE("Unable to set sw params for playback: %{public}s", snd_strerror(ret));
@@ -566,54 +579,77 @@ static int32_t RenderSetParams(struct AlsaRender *renderIns, const struct AudioH
 }
 
 static int32_t RenderWritei(snd_pcm_t *pcm, const struct AudioHwRenderParam *handleData,
-    const struct AudioPcmHwParams *hwParams)
+    const struct AudioPcmHwParams *hwParams, uint64_t *acceptedBytes)
 {
-    int32_t ret = HDF_SUCCESS;
-    int32_t tryNum = AUDIO_ALSALIB_RETYR;
+    if (acceptedBytes == NULL) {
+        return HDF_FAILURE;
+    }
+    *acceptedBytes = 0;
+    if (pcm == NULL || handleData == NULL || hwParams == NULL || hwParams->bitsPerFrame <= 0 ||
+        hwParams->bitsPerFrame % BIT_COUNT_OF_BYTE != 0) {
+        return HDF_FAILURE;
+    }
+    uint64_t frameBytes = (uint64_t)hwParams->bitsPerFrame / BIT_COUNT_OF_BYTE;
+    uint64_t requestedFrames = handleData->frameRenderMode.bufferFrameSize;
+    uint64_t requestedBytes = handleData->frameRenderMode.bufferSize;
+    if (requestedFrames > SIZE_MAX / frameBytes || requestedFrames * frameBytes != requestedBytes ||
+        (requestedBytes != 0 && handleData->frameRenderMode.buffer == NULL)) {
+        return HDF_FAILURE;
+    }
+    if (requestedFrames == 0) {
+        return HDF_SUCCESS;
+    }
 
-    /* Check whether the PCM status is normal */
     snd_pcm_state_t state = snd_pcm_state(pcm);
     if (state == SND_PCM_STATE_SETUP) {
-        ret = snd_pcm_prepare(pcm);
+        int32_t ret = snd_pcm_prepare(pcm);
         if (ret < 0) {
             AUDIO_FUNC_LOGE("snd_pcm_prepare fail: %{public}s", snd_strerror(ret));
             return HDF_FAILURE;
         }
     }
 
-    size_t sbufFrameSize = (size_t)handleData->frameRenderMode.bufferFrameSize;
+    size_t remaining = (size_t)requestedFrames;
     char *dataBuf = handleData->frameRenderMode.buffer;
-    int32_t offset = hwParams->bitsPerFrame / BIT_COUNT_OF_BYTE;
-    while (sbufFrameSize > 0) {
-        long frames = snd_pcm_writei(pcm, dataBuf, sbufFrameSize);
+    int32_t tryNum = AUDIO_ALSALIB_RETYR;
+    while (remaining > 0) {
+        snd_pcm_sframes_t frames = snd_pcm_writei(pcm, dataBuf, remaining);
         if (frames > 0) {
-            sbufFrameSize -= frames;
-            dataBuf += frames * offset;
-        } else if (frames == -EAGAIN) {
-            snd_pcm_wait(pcm, PCM_WAIT_TIMEOUT_MS);
-            tryNum--;
-            if (tryNum == 0) {
-                return HDF_SUCCESS;
+            if ((uint64_t)frames > remaining) {
+                AUDIO_FUNC_LOGE("snd_pcm_writei returned more frames than requested");
+                return HDF_FAILURE;
             }
-        } else if (frames == -EBADFD) {
-            /* not #SND_PCM_STATE_PREPARED or #SND_PCM_STATE_RUNNING */
+            size_t bytes = (size_t)frames * (size_t)frameBytes;
+            *acceptedBytes += (uint64_t)bytes;
+            remaining -= (size_t)frames;
+            dataBuf += bytes;
+            continue;
+        }
+        if (frames == 0) {
+            AUDIO_FUNC_LOGE("snd_pcm_writei made no progress");
+            return ALSA_RENDER_WRITE_RETRYABLE;
+        }
+        if (frames == -EBADFD) {
             AUDIO_FUNC_LOGE("render PCM is not in the right state: %{public}s", snd_strerror(frames));
-            snd_pcm_prepare(pcm);
+            (void)snd_pcm_prepare(pcm);
             return HDF_FAILURE;
+        }
+        if (frames == -EAGAIN) {
+            if (snd_pcm_wait(pcm, PCM_WAIT_TIMEOUT_MS) < 0) {
+                return HDF_FAILURE;
+            }
         } else {
-            /* -ESTRPIPE: a suspend event occurred,
-             * stream is suspended and waiting for an application recovery.
-             * -EPIPE: an underrun occurred.
-             */
-            AUDIO_FUNC_LOGI("err: %{public}s", snd_strerror(ret));
-            ret = snd_pcm_recover(pcm, frames, 0); // 0 for open render recover log.
+            int32_t ret = snd_pcm_recover(pcm, (int)frames, 0);
             if (ret < 0) {
-                AUDIO_FUNC_LOGE("snd_pcm_writei failed: %{public}s", snd_strerror(ret));
+                AUDIO_FUNC_LOGE("snd_pcm_writei recovery failed: %{public}s", snd_strerror(ret));
                 return HDF_FAILURE;
             }
         }
+        if (--tryNum == 0) {
+            AUDIO_FUNC_LOGE("snd_pcm_writei retry budget exhausted");
+            return frames == -EAGAIN ? ALSA_RENDER_WRITE_RETRYABLE : HDF_FAILURE;
+        }
     }
-
     return HDF_SUCCESS;
 }
 
@@ -718,33 +754,55 @@ static int32_t RenderCloseImpl(struct AlsaRender *renderIns)
     return HDF_SUCCESS;
 }
 
-int32_t RenderWriteImpl(struct AlsaRender *renderIns, const struct AudioHwRenderParam *handleData)
+static int32_t RenderWriteAcceptedDefault(struct AlsaRender *renderIns,
+    const struct AudioHwRenderParam *handleData, uint64_t *acceptedBytes)
 {
-    int32_t ret = HDF_SUCCESS;
-    struct AlsaSoundCard *cardIns = (struct AlsaSoundCard*)renderIns;
-    CHECK_NULL_PTR_RETURN_DEFAULT(renderIns);
-
+    struct AlsaSoundCard *cardIns = (struct AlsaSoundCard *)renderIns;
     if (cardIns->pauseState) {
         AUDIO_FUNC_LOGE("Currently in pause, please check!");
         return HDF_FAILURE;
     }
-
     if (!cardIns->mmapFlag) {
-        ret = ResetRenderParams(cardIns, SND_PCM_ACCESS_RW_INTERLEAVED);
+        int32_t ret = ResetRenderParams(cardIns, SND_PCM_ACCESS_RW_INTERLEAVED);
         if (ret < 0) {
             AUDIO_FUNC_LOGE("ResetRenderParams failed!");
             return HDF_FAILURE;
         }
         cardIns->mmapFlag = true;
     }
+    return RenderWritei(cardIns->pcmHandle, handleData, &cardIns->hwParams, acceptedBytes);
+}
 
-    ret = RenderWritei(cardIns->pcmHandle, handleData, &cardIns->hwParams);
-    if (ret != HDF_SUCCESS) {
-        AUDIO_FUNC_LOGE("RenderWritei failed!");
+int32_t RenderWriteImpl(struct AlsaRender *renderIns, const struct AudioHwRenderParam *handleData)
+{
+    uint64_t acceptedBytes = 0;
+    if (renderIns == NULL || handleData == NULL) {
         return HDF_FAILURE;
     }
+    int32_t ret = RenderWriteAcceptedDefault(renderIns, handleData, &acceptedBytes);
+    return ret == HDF_SUCCESS ? HDF_SUCCESS : HDF_FAILURE;
+}
 
-    return HDF_SUCCESS;
+int32_t RenderWriteAccepted(struct AlsaRender *renderIns, const struct AudioHwRenderParam *handleData,
+    uint64_t *acceptedBytes)
+{
+    if (acceptedBytes == NULL) {
+        return HDF_FAILURE;
+    }
+    *acceptedBytes = 0;
+    if (renderIns == NULL || handleData == NULL || renderIns->Write == NULL) {
+        return HDF_FAILURE;
+    }
+    if (renderIns->Write == RenderWriteImpl) {
+        return RenderWriteAcceptedDefault(renderIns, handleData, acceptedBytes);
+    }
+    /* Preserve the pre-existing all-or-error contract of a vendor Write override.
+     * This compatibility branch is not a raw ALSA writei observation. */
+    int32_t ret = renderIns->Write(renderIns, handleData);
+    if (ret == HDF_SUCCESS) {
+        *acceptedBytes = handleData->frameRenderMode.bufferSize;
+    }
+    return ret == HDF_SUCCESS ? HDF_SUCCESS : HDF_FAILURE;
 }
 
 int32_t RenderGetMmapPositionImpl(struct AlsaRender *renderIns)

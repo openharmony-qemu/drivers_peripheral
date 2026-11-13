@@ -1,0 +1,233 @@
+{
+  "schema": "normal-qemu-cpu-voice-inputs/v1",
+  "models": {
+    "encoder.onnx": {
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/models/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
+        "sha256": "dd784973fc9d2fabb3b800d6dcd20fc3b0ca84f8e2415afe54b032878e447f4d",
+        "bytes": 4777666
+      },
+      "relative": "assets/model/encoder.onnx",
+      "sha256": "dd784973fc9d2fabb3b800d6dcd20fc3b0ca84f8e2415afe54b032878e447f4d"
+    },
+    "decoder.onnx": {
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/models/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
+        "sha256": "ed83454004d5bd16d831eaf00adcd181ed7734886aab6ef440f3ffa5aa3cfe3b",
+        "bytes": 181069
+      },
+      "relative": "assets/model/decoder.onnx",
+      "sha256": "ed83454004d5bd16d831eaf00adcd181ed7734886aab6ef440f3ffa5aa3cfe3b"
+    },
+    "joiner.onnx": {
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/models/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
+        "sha256": "f79760052b87239e325f0567c752ad3130b30d92effb847d4307743c20c59a24",
+        "bytes": 65242
+      },
+      "relative": "assets/model/joiner.onnx",
+      "sha256": "f79760052b87239e325f0567c752ad3130b30d92effb847d4307743c20c59a24"
+    },
+    "tokens.txt": {
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/models/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/tokens.txt",
+        "sha256": "72316508d9119696145abc6f1f8cdc46287535c34e5ce7e595f845cb1499cf2e",
+        "bytes": 1627
+      },
+      "relative": "assets/model/tokens.txt",
+      "sha256": "72316508d9119696145abc6f1f8cdc46287535c34e5ce7e595f845cb1499cf2e"
+    },
+    "speaker.onnx": {
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/models/speaker.onnx",
+        "sha256": "f682b514c05d947ee3fa91cd6ec6c5c7543479a128373fa29b1faedccd21fd11",
+        "bytes": 28281138
+      },
+      "relative": "assets/model/speaker.onnx",
+      "sha256": "f682b514c05d947ee3fa91cd6ec6c5c7543479a128373fa29b1faedccd21fd11"
+    },
+    "pinyin.txt": {
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/models/pinyin.txt",
+        "sha256": "6170ab4ff7c9740fe765b1d35e6d3ad43554dd02874199388db513c44dcddf9d",
+        "bytes": 929764
+      },
+      "relative": "assets/model/pinyin.txt",
+      "sha256": "6170ab4ff7c9740fe765b1d35e6d3ad43554dd02874199388db513c44dcddf9d"
+    },
+    "NOTICES.txt": {
+      "relative": "assets/model/NOTICES.txt",
+      "sha256": "0478594b903aa31c28d0ea4fc61fc79a0396956b053b60dc6b2188ece65b71c7",
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/candidate/component/patches/common/drivers/peripheral/intelligent_voice/cpu_provider/assets/model/NOTICES.txt",
+        "sha256": "0478594b903aa31c28d0ea4fc61fc79a0396956b053b60dc6b2188ece65b71c7",
+        "bytes": 25568
+      }
+    }
+  },
+  "libraries": [
+    {
+      "abi": "arm64-v8a",
+      "original_har": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-apps-providers579-candidate/research/sherpa_onnx-1.11.2.har",
+        "sha256": "d196941c571f4bd7dd98e6c03097aa4873b9a934ceced64800fb85b25892e6a0",
+        "bytes": 13894230
+      },
+      "member": "package/libs/arm64-v8a/libsherpa-onnx-c-api.so",
+      "sha256": "dafe889309536c25bcd3e07e9ff2a67659589fe16bd55fb0cbc2fb8d98c76aea",
+      "elf": {
+        "elf_class": 64,
+        "endianness": "little",
+        "machine": 183,
+        "soname": [
+          "libsherpa-onnx-c-api.so"
+        ],
+        "needed": [
+          "libhilog_ndk.z.so",
+          "librawfile.z.so",
+          "libonnxruntime.so",
+          "libc++_shared.so",
+          "libc.so"
+        ]
+      }
+    },
+    {
+      "abi": "arm64-v8a",
+      "original_har": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-apps-providers579-candidate/research/sherpa_onnx-1.11.2.har",
+        "sha256": "d196941c571f4bd7dd98e6c03097aa4873b9a934ceced64800fb85b25892e6a0",
+        "bytes": 13894230
+      },
+      "member": "package/libs/arm64-v8a/libonnxruntime.so",
+      "sha256": "f9fd9080a10f2b93323d597225fbaa63d06f93b384bdfdd7285db9a9115fcc2b",
+      "elf": {
+        "elf_class": 64,
+        "endianness": "little",
+        "machine": 183,
+        "soname": [
+          "libonnxruntime.so"
+        ],
+        "needed": [
+          "libc++_shared.so",
+          "libc.so"
+        ]
+      }
+    },
+    {
+      "abi": "arm64-v8a",
+      "original_har": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-apps-providers579-candidate/research/sherpa_onnx-1.11.2.har",
+        "sha256": "d196941c571f4bd7dd98e6c03097aa4873b9a934ceced64800fb85b25892e6a0",
+        "bytes": 13894230
+      },
+      "member": "package/libs/arm64-v8a/libc++_shared.so",
+      "sha256": "3cecd922ef5e1289d988506741ed6a96bc028ae2cdc528f9459af6a000e1218b",
+      "elf": {
+        "elf_class": 64,
+        "endianness": "little",
+        "machine": 183,
+        "soname": [
+          "libc++_shared.so"
+        ],
+        "needed": [
+          "libc.so"
+        ]
+      }
+    },
+    {
+      "abi": "x86_64",
+      "original_har": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-apps-providers579-candidate/research/sherpa_onnx-1.11.2.har",
+        "sha256": "d196941c571f4bd7dd98e6c03097aa4873b9a934ceced64800fb85b25892e6a0",
+        "bytes": 13894230
+      },
+      "member": "package/libs/x86_64/libsherpa-onnx-c-api.so",
+      "sha256": "8e7704ca37e2113c67521b338748d82b71b9edef511e556c37f10fed57de1fd8",
+      "elf": {
+        "elf_class": 64,
+        "endianness": "little",
+        "machine": 62,
+        "soname": [
+          "libsherpa-onnx-c-api.so"
+        ],
+        "needed": [
+          "libhilog_ndk.z.so",
+          "librawfile.z.so",
+          "libonnxruntime.so",
+          "libc++_shared.so",
+          "libc.so"
+        ]
+      }
+    },
+    {
+      "abi": "x86_64",
+      "original_har": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-apps-providers579-candidate/research/sherpa_onnx-1.11.2.har",
+        "sha256": "d196941c571f4bd7dd98e6c03097aa4873b9a934ceced64800fb85b25892e6a0",
+        "bytes": 13894230
+      },
+      "member": "package/libs/x86_64/libonnxruntime.so",
+      "sha256": "80abf5a65b6f07977b7d994d79bf5dd380e3db51a947fc571c872c631331c18b",
+      "elf": {
+        "elf_class": 64,
+        "endianness": "little",
+        "machine": 62,
+        "soname": [
+          "libonnxruntime.so"
+        ],
+        "needed": [
+          "libc++_shared.so",
+          "libc.so"
+        ]
+      }
+    },
+    {
+      "abi": "x86_64",
+      "original_har": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-apps-providers579-candidate/research/sherpa_onnx-1.11.2.har",
+        "sha256": "d196941c571f4bd7dd98e6c03097aa4873b9a934ceced64800fb85b25892e6a0",
+        "bytes": 13894230
+      },
+      "member": "package/libs/x86_64/libc++_shared.so",
+      "sha256": "fb22756b3cece1bc7a05f9fdc79b9a09eeb59a67fc43a1ab095fe04a5cb37e1b",
+      "elf": {
+        "elf_class": 64,
+        "endianness": "little",
+        "machine": 62,
+        "soname": [
+          "libc++_shared.so"
+        ],
+        "needed": [
+          "libc.so"
+        ]
+      }
+    }
+  ],
+  "arm32_sources": {
+    "sherpa": {
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/upstream/sherpa-onnx-v1.11.2.tar.gz",
+        "sha256": "076031e8801d0f079f008733ad3ad73140ca57ca024bb114a69943eef93f76ba",
+        "bytes": 8310954
+      },
+      "relative": "assets/arm32/sherpa-onnx-v1.11.2.tar.gz",
+      "sha256": "076031e8801d0f079f008733ad3ad73140ca57ca024bb114a69943eef93f76ba"
+    },
+    "ort": {
+      "source": {
+        "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/upstream/onnxruntime-ohos-armeabi-v7a-1.16.3.zip",
+        "sha256": "cecbae2a8404a26ad1595f3ff0886e2e1353933c0883e2dfa846f063dfe34902",
+        "bytes": 5252542
+      },
+      "relative": "assets/arm32/onnxruntime-ohos-armeabi-v7a-1.16.3.zip",
+      "sha256": "cecbae2a8404a26ad1595f3ff0886e2e1353933c0883e2dfa846f063dfe34902"
+    }
+  },
+  "normal_prebuilt_dependency_not_compile_proof": true,
+  "original_upstream_source_archive": {
+    "path": "/Volumes/PSSD/code/ohos-rs/ohos-qemu/.tmp/parallel-capability-20261016/root-media579-provider-scope-candidate/research/upstream/sherpa-onnx-v1.11.2.tar.gz",
+    "sha256": "076031e8801d0f079f008733ad3ad73140ca57ca024bb114a69943eef93f76ba",
+    "bytes": 8310954
+  },
+  "runtime_pass": false
+}

@@ -16,6 +16,9 @@
 #include "hdf_base.h"
 #include "intell_voice_log.h"
 #include "engine_factory.h"
+#ifdef QEMU_CPU_VOICE_PROVIDER
+#include "cpu_voice_engine.h"
+#endif
 
 #undef HDF_LOG_TAG
 #define HDF_LOG_TAG "IntellVoiceEngineMgr"
@@ -35,7 +38,7 @@ public:
         if (engine == nullptr) {
             INTELLIGENT_VOICE_LOGE("failed to create engine");
         }
-        return HDF_SUCCESS;
+        return engine != nullptr ? HDF_SUCCESS : HDF_ERR_NOT_SUPPORT;
     }
 
     int32_t ReleaseAdapter(const IntellVoiceEngineAdapterDescriptor &descriptor) override
@@ -77,7 +80,11 @@ public:
     int32_t ClearUserWakeupData(const std::string &wakeupPhrase) override
     {
         INTELLIGENT_VOICE_LOGD("enter");
+#ifdef QEMU_CPU_VOICE_PROVIDER
+        return CpuVoiceEngine::ClearEnrollment(wakeupPhrase);
+#else
         return HDF_SUCCESS;
+#endif
     }
 
     static IntellVoiceEngineManager *GetInstance()

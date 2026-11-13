@@ -23,6 +23,7 @@
 #include <condition_variable>
 #include <map>
 #include <memory>
+#include <set>
 
 namespace OHOS::Camera {
 class IStream;
@@ -49,6 +50,7 @@ public:
     void SetFirstRequest(bool b);
     bool IsFirstOne() const;
     CaptureMeta GetCaptureSetting() const;
+    bool TryMarkCaptureEnded(int32_t streamId);
 
 private:
     class RequestSemaphore final {
@@ -73,6 +75,7 @@ private:
     int32_t captureId_ = -1;
     std::mutex lock_ = {};
     std::map<int32_t, std::weak_ptr<IStream>> owners_ = {};
+    std::set<int32_t> endedStreams_ = {};
     std::unique_ptr<RequestSemaphore> semp_ = nullptr;
     std::unique_ptr<RequestSemaphore> semr_ = nullptr;
     CaptureMeta settings_;

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<thermal version="0.01" product="qemu">
+    <base>
+        <item tag="sim_tz" value="0"/>
+    </base>
+    <polling name="thermal">
+        <group name="actual" interval="1000">
+            <thermal_zone type="battery" replace="battery"/>
+        </group>
+    </polling>
+</thermal>

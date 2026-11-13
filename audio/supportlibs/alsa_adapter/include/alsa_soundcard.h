@@ -108,6 +108,7 @@ void AudioCloseService(const struct DevHandle *handle);
 struct HdfIoService *HdfIoServiceBindName(const char *serviceName);
 
 int32_t SndMatchSelAdapter(struct AlsaSoundCard *cardIns, const char *adapterName);
+int32_t SndMatchSelCaptureAdapter(struct AlsaSoundCard *cardIns, const char *adapterName);
 int32_t SndConverAlsaPcmFormat(const struct AudioPcmHwParams *hwParams,
     snd_pcm_format_t *alsaPcmFormat);
 int32_t SndSaveCardListInfo(snd_pcm_stream_t stream, int32_t device);

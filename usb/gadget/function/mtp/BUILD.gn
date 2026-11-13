@@ -27,6 +27,10 @@ ohos_shared_library("libusbfn_mtp_interface_service_1.0") {
   branch_protector_ret = "pac_ret"
 
   sources = [ "src/usbfn_mtp_impl.cpp" ]
+  if (drivers_peripheral_usb_feature_qemu_standard_functionfs) {
+    sources += [ "src/qemu_mtp_functionfs.cpp" ]
+    defines = [ "USB_QEMU_STANDARD_FUNCTIONFS" ]
+  }
 
   include_dirs = [
     "./../../../interfaces/ddk/device",

@@ -15,6 +15,7 @@
 
 #include "alsa_soundcard.h"
 #include <ctype.h>
+#include <pthread.h>
 #include "cJSON.h"
 
 #define HDF_LOG_TAG HDF_AUDIO_HAL_SND
@@ -30,6 +31,10 @@ struct AlsaAdapterCfgInfo {
     char adapterName[MAX_CARD_NAME_LEN];
     int32_t cardId;
     char cardName[MAX_CARD_NAME_LEN];
+    bool hasCaptureRoute;
+    int32_t captureCardId;
+    char captureCardName[MAX_CARD_NAME_LEN];
+    int32_t captureDevice;
 };
 struct AlsaAdapterList {
     int32_t num;
@@ -48,6 +53,7 @@ struct AlsaCardsList {
     struct AlsaDevInfo alsaDevIns[MAX_CARD_NUM];
 };
 static struct AlsaCardsList g_alsaCardsDevList;
+static pthread_mutex_t g_alsaConfigMutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 static char *CfgReadAdapterFile(const char *fpath)
@@ -186,6 +192,38 @@ static int32_t CfgDumpAdapterInfo(struct AlsaAdapterCfgInfo *info)
     return HDF_SUCCESS;
 }
 
+static int32_t CfgSaveCaptureRoute(cJSON *adapter, struct AlsaAdapterCfgInfo *info)
+{
+    cJSON *card = cJSON_GetObjectItem(adapter, "captureCardId");
+    cJSON *name = cJSON_GetObjectItem(adapter, "captureCardName");
+    cJSON *device = cJSON_GetObjectItem(adapter, "captureDevice");
+    info->hasCaptureRoute = false;
+    info->captureCardId = -1;
+    info->captureDevice = -1;
+    info->captureCardName[0] = '\0';
+    if (card == NULL && name == NULL && device == NULL) {
+        return HDF_SUCCESS; // Old product configurations retain their existing capture route.
+    }
+    if (!cJSON_IsNumber(card) || !cJSON_IsString(name) || !cJSON_IsNumber(device) ||
+        name->valuestring == NULL || name->valuestring[0] == '\0' ||
+        strlen(name->valuestring) >= MAX_CARD_NAME_LEN ||
+        !(card->valuedouble >= 0 && card->valuedouble < MAX_CARD_NUM) ||
+        !(device->valuedouble >= 0 && device->valuedouble <= MIXER_CTL_MAX_NUM)) {
+        return HDF_FAILURE;
+    }
+    // Range checks precede conversion, including NaN/infinity rejection.
+    int32_t cardId = (int32_t)card->valuedouble;
+    int32_t pcmDevice = (int32_t)device->valuedouble;
+    if (card->valuedouble != cardId || device->valuedouble != pcmDevice ||
+        strcpy_s(info->captureCardName, sizeof(info->captureCardName), name->valuestring) != EOK) {
+        return HDF_FAILURE;
+    }
+    info->captureCardId = cardId;
+    info->captureDevice = pcmDevice;
+    info->hasCaptureRoute = true;
+    return HDF_SUCCESS;
+}
+
 static int32_t CfgSaveAdapterStruct(cJSON *adapter, struct AlsaAdapterCfgInfo *info)
 {
     CHECK_NULL_PTR_RETURN_DEFAULT(adapter);
@@ -220,7 +258,7 @@ static int32_t CfgSaveAdapterStruct(cJSON *adapter, struct AlsaAdapterCfgInfo *i
         return HDF_FAILURE;
     }
 
-    return HDF_SUCCESS;
+    return CfgSaveCaptureRoute(adapter, info);
 }
 
 static int32_t CfgParseAdapterItems(cJSON *adapterObj)
@@ -424,7 +462,7 @@ static int32_t DevSaveDriverInfo(snd_pcm_stream_t stream, int32_t device)
     return HDF_SUCCESS;
 }
 
-int32_t SndSaveCardListInfo(snd_pcm_stream_t stream, int32_t device)
+static int32_t SndSaveCardListInfoUnlocked(snd_pcm_stream_t stream, int32_t device)
 {
     (void)memset_s(&g_alsaAdapterList, sizeof(struct AlsaAdapterList) * SND_CARD_MAX,
         0, sizeof(struct AlsaAdapterList) * SND_CARD_MAX);
@@ -464,7 +502,7 @@ int32_t SndSaveCardListInfo(snd_pcm_stream_t stream, int32_t device)
     return HDF_SUCCESS;
 }
 
-int32_t SndMatchSelAdapter(struct AlsaSoundCard *cardIns, const char *adapterName)
+static int32_t SndMatchSelAdapterUnlocked(struct AlsaSoundCard *cardIns, const char *adapterName)
 {
     struct AlsaDevInfo *devInfo = NULL;
     struct AlsaAdapterCfgInfo *info = NULL;
@@ -509,6 +547,79 @@ int32_t SndMatchSelAdapter(struct AlsaSoundCard *cardIns, const char *adapterNam
     }
 
     return HDF_SUCCESS;
+}
+
+int32_t SndSaveCardListInfo(snd_pcm_stream_t stream, int32_t device)
+{
+    pthread_mutex_lock(&g_alsaConfigMutex);
+    int32_t ret = SndSaveCardListInfoUnlocked(stream, device);
+    pthread_mutex_unlock(&g_alsaConfigMutex);
+    return ret;
+}
+
+int32_t SndMatchSelAdapter(struct AlsaSoundCard *cardIns, const char *adapterName)
+{
+    pthread_mutex_lock(&g_alsaConfigMutex);
+    int32_t ret = SndMatchSelAdapterUnlocked(cardIns, adapterName);
+    pthread_mutex_unlock(&g_alsaConfigMutex);
+    return ret;
+}
+
+static int32_t SndMatchExplicitCapture(struct AlsaSoundCard *cardIns,
+    const struct AlsaAdapterCfgInfo *info, enum SndCardType cardType)
+{
+    snd_ctl_t *ctl = NULL;
+    snd_ctl_card_info_t *cardInfo;
+    snd_pcm_info_t *pcmInfo;
+    snd_ctl_card_info_alloca(&cardInfo);
+    snd_pcm_info_alloca(&pcmInfo);
+    char control[MAX_CARD_NAME_LEN] = {0};
+    if (snprintf_s(control, sizeof(control), sizeof(control) - 1, "hw:%d", info->captureCardId) < 0 ||
+        snd_ctl_open(&ctl, control, 0) < 0) {
+        return HDF_FAILURE;
+    }
+    int32_t ret = HDF_FAILURE;
+    if (snd_ctl_card_info(ctl, cardInfo) < 0 ||
+        strcmp(snd_ctl_card_info_get_id(cardInfo), info->captureCardName) != 0) {
+        goto done;
+    }
+    // A fresh direction-specific PCM query cannot accidentally select a render enumeration.
+    snd_pcm_info_set_device(pcmInfo, (unsigned int)info->captureDevice);
+    snd_pcm_info_set_subdevice(pcmInfo, 0);
+    snd_pcm_info_set_stream(pcmInfo, SND_PCM_STREAM_CAPTURE);
+    if (snd_ctl_pcm_info(ctl, pcmInfo) < 0) {
+        goto done;
+    }
+    if (snprintf_s(cardIns->devName, MAX_CARD_NAME_LEN, MAX_CARD_NAME_LEN - 1,
+        "hw:%d,%d,0", info->captureCardId, info->captureDevice) < 0 ||
+        strcpy_s(cardIns->ctrlName, MAX_CARD_NAME_LEN, control) != EOK ||
+        strcpy_s(cardIns->alsaCardId, MAX_CARD_NAME_LEN, snd_ctl_card_info_get_id(cardInfo)) != EOK) {
+        goto done;
+    }
+    cardIns->cardType = cardType;
+    ret = HDF_SUCCESS;
+done:
+    snd_ctl_close(ctl);
+    return ret;
+}
+
+int32_t SndMatchSelCaptureAdapter(struct AlsaSoundCard *cardIns, const char *adapterName)
+{
+    CHECK_NULL_PTR_RETURN_DEFAULT(cardIns);
+    CHECK_NULL_PTR_RETURN_DEFAULT(adapterName);
+    pthread_mutex_lock(&g_alsaConfigMutex);
+    struct AlsaAdapterCfgInfo *info = CfgGetAdapterInfo(adapterName);
+    enum SndCardType type = CfgGetAdapterCardType(adapterName);
+    int32_t ret = HDF_FAILURE;
+    if (info != NULL && type != SND_CARD_UNKNOWN) {
+        if (info->hasCaptureRoute) {
+            ret = SndMatchExplicitCapture(cardIns, info, type);
+        } else {
+            ret = SndMatchSelAdapterUnlocked(cardIns, adapterName);
+        }
+    }
+    pthread_mutex_unlock(&g_alsaConfigMutex);
+    return ret;
 }
 
 int32_t SndConverAlsaPcmFormat(const struct AudioPcmHwParams *hwParams, snd_pcm_format_t *alsaPcmFormat)

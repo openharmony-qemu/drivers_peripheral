@@ -71,10 +71,9 @@ static void RotJpegImg(
     outInfo.err = jpeg_std_error(&jerrOut);
     jpeg_create_compress(&outInfo);
     jpeg_mem_src(&inputInfo, inputImg, inputSize);
-    jpeg_mem_dest(&outInfo, outImg, (unsigned long *)outSize);
 
-    JCOPY_OPTION copyoption;
-    jpeg_transform_info transformoption;
+    const JCOPY_OPTION copyoption = JCOPYOPT_ALL;
+    jpeg_transform_info transformoption = {};
     transformoption.transform = rotDegrees;
     transformoption.perfect = TRUE;
     transformoption.trim = FALSE;
@@ -86,9 +85,12 @@ static void RotJpegImg(
 
     if (!jtransform_request_workspace(&inputInfo, &transformoption)) {
         CAMERA_LOGE("%s: transformation is not perfect", __func__);
+        jpeg_destroy_compress(&outInfo);
+        jpeg_destroy_decompress(&inputInfo);
         return;
     }
 
+    jpeg_mem_dest(&outInfo, outImg, (unsigned long *)outSize);
     src_coef_arrays = jpeg_read_coefficients(&inputInfo);
     jpeg_copy_critical_parameters(&inputInfo, &outInfo);
     dst_coef_arrays = jtransform_adjust_parameters(&inputInfo, &outInfo, src_coef_arrays, &transformoption);
@@ -130,21 +132,38 @@ RetCode CodecNode::ConfigJpegQuality(common_metadata_header_t* data)
 {
     camera_metadata_item_t entry;
     int ret = FindCameraMetadataItem(data, OHOS_JPEG_QUALITY, &entry);
+    const int highQualityJpeg = 100;
+    const int middleQualityJpeg = 95;
+    const int lowQualityJpeg = 85;
+#ifdef QEMU_VIVID_CAPTURE_ENABLED
+    // An ordinary PhotoOutput.capture() need not specify a quality. The
+    // framework adds rotation/mirror but does not copy this ability default
+    // into capture settings. Only the virtual YUYV-to-JPEG pipeline supplies
+    // a default here; an explicit quality still takes precedence.
+    if (ret != CAM_META_SUCCESS) {
+        jpegQuality_ = highQualityJpeg;
+        CAMERA_LOGI("OHOS_JPEG_QUALITY absent, use Vivid JPEG default");
+        return RC_OK;
+    }
+    if (entry.count != 1 || entry.data.u8 == nullptr) {
+        CAMERA_LOGE("invalid OHOS_JPEG_QUALITY item");
+        return RC_ERROR;
+    }
+    const uint8_t qualityLevel = entry.data.u8[0];
+#else
     if (ret != 0) {
         CAMERA_LOGE("tag OHOS_JPEG_QUALITY not found");
         return RC_ERROR;
     }
-
-    const int highQualityJpeg = 100;
-    const int middleQualityJpeg = 95;
-    const int lowQualityJpeg = 85;
+    const int32_t qualityLevel = *entry.data.i32;
+#endif
 
     CAMERA_LOGI("OHOS_JPEG_QUALITY is = %{public}d", static_cast<int>(entry.data.u8[0]));
-    if (*entry.data.i32 == OHOS_CAMERA_JPEG_LEVEL_LOW) {
+    if (qualityLevel == OHOS_CAMERA_JPEG_LEVEL_LOW) {
         jpegQuality_ = lowQualityJpeg;
-    } else if (*entry.data.i32 == OHOS_CAMERA_JPEG_LEVEL_MIDDLE) {
+    } else if (qualityLevel == OHOS_CAMERA_JPEG_LEVEL_MIDDLE) {
         jpegQuality_ = middleQualityJpeg;
-    } else if (*entry.data.i32 == OHOS_CAMERA_JPEG_LEVEL_HIGH) {
+    } else if (qualityLevel == OHOS_CAMERA_JPEG_LEVEL_HIGH) {
         jpegQuality_ = highQualityJpeg;
     } else {
         jpegQuality_ = highQualityJpeg;

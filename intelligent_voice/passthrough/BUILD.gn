@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import("//build/ohos.gni")
+import("../intelligent_voice.gni")
 
 ohos_shared_library("vendor_intell_voice_trigger") {
   include_dirs = [
@@ -36,12 +37,25 @@ ohos_shared_library("vendor_intell_voice_trigger") {
 }
 
 ohos_shared_library("vendor_intell_voice_engine") {
-  include_dirs = [
+  sources = []
+  include_dirs = []
+  if (drivers_peripheral_intelligent_voice_qemu_cpu_provider) {
+    defines = [ "QEMU_CPU_VOICE_PROVIDER" ]
+    sanitize = {
+      cfi = true
+      cfi_cross_dso = true
+      debug = false
+    }
+    include_dirs = [ "cpu/include" ]
+    sources = [ "engine/cpu_voice_engine.cpp" ]
+    deps = [ "cpu:cpu_voice_assets", "cpu:cpu_sherpa", "cpu:cpu_ort", "cpu:cpu_cxx" ]
+  }
+  include_dirs += [
     "../interfaces",
     "../utils",
     "engine",
   ]
-  sources = [
+  sources += [
     "engine/engine_base.cpp",
     "engine/engine_factory.cpp",
     "engine/enroll_engine.cpp",

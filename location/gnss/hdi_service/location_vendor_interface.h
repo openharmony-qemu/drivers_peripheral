@@ -30,15 +30,13 @@ public:
     static LocationVendorInterface* GetInstance();
     static void DestroyInstance();
 private:
+    static LocationVendorInterface* Singleton();
     LocationVendorInterface();
     ~LocationVendorInterface();
     void Init();
     void CleanUp();
 
-    static LocationVendorInterface* instance_;
-    static std::mutex mutex_;
-    void *vendorHandle_ = nullptr;
-    const GnssVendorInterface *vendorInterface_ = nullptr;
+    // The singleton and proxy table outlive retired vendor DSOs. No caller borrows a DSO table.
 };
 } // Location
 } // HDI

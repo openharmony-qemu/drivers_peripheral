@@ -13,6 +13,9 @@
  * limitations under the License.
  */
 #include "engine_factory.h"
+#ifdef QEMU_CPU_VOICE_PROVIDER
+#include "cpu_voice_engine.h"
+#endif
 #include "intell_voice_log.h"
 #include "enroll_engine.h"
 #include "wakeup_engine.h"
@@ -31,10 +34,18 @@ std::unique_ptr<EngineBase> EngineFactory::CreateEngine(IntellVoiceEngineAdapter
 
     switch (type) {
         case ENROLL_ADAPTER_TYPE:
+            #ifdef QEMU_CPU_VOICE_PROVIDER
+            engine = std::make_unique<CpuVoiceEngine>(true);
+#else
             engine = std::make_unique<EnrollEngine>();
+#endif
             break;
         case WAKEUP_ADAPTER_TYPE:
+            #ifdef QEMU_CPU_VOICE_PROVIDER
+            engine = std::make_unique<CpuVoiceEngine>(false);
+#else
             engine = std::make_unique<WakeupEngine>();
+#endif
             break;
         default:
             INTELLIGENT_VOICE_LOGE("type: %{public}d is invalid", type);

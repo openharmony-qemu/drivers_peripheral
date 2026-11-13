@@ -76,6 +76,13 @@ struct AlsaRender {
     int32_t (*SetPauseState)(struct AlsaRender *, bool);
 };
 
+/* Private result, never an HDI status or a byte count. */
+enum AlsaRenderWriteResult { ALSA_RENDER_WRITE_RETRYABLE = 1 };
+
+/* Accepted bytes are a prefix even when the returned status is an error. */
+int32_t RenderWriteAccepted(struct AlsaRender *renderIns, const struct AudioHwRenderParam *handleData,
+    uint64_t *acceptedBytes);
+
 struct AlsaRender *RenderCreateInstance(const char* adapterName, enum AudioCategory scene);
 struct AlsaRender *RenderGetInstance(const char *adapterName);
 void  RenderSetPriData(struct AlsaRender *renderIns, RenderPriData data);

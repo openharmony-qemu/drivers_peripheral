@@ -21,6 +21,7 @@
 #include "v4l2_dev.h"
 #include "v4l2_uvc.h"
 #include "usb_device_filter.h"
+#include "qemu_v4l2_capture.h"
 
 constexpr int NAME_START_POS = 2;
 
@@ -202,7 +203,7 @@ RetCode HosV4L2UVC::V4L2UvcGetCap(const std::string v4l2Device, struct v4l2_capa
     }
     fdsan_close_with_tag(fd, fdsan_create_owner_tag(FDSAN_OWNER_TYPE_FILE, LOG_DOMAIN));
 
-    if (!((cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) && (cap.capabilities & V4L2_CAP_STREAMING))) {
+    if (!QemuStreamingCapture(cap) || !QemuCaptureDriverMatches(cap, "uvcvideo")) {
         return RC_ERROR;
     }
 
@@ -218,11 +219,11 @@ RetCode HosV4L2UVC::V4L2UVCGetCapability(int fd, const std::string devName, std:
         return RC_ERROR;
     }
 
-    if (!((capability.capabilities & V4L2_CAP_VIDEO_CAPTURE) && (capability.capabilities & V4L2_CAP_STREAMING))) {
+    if (!QemuStreamingCapture(capability)) {
         return RC_ERROR;
     }
 
-    if (cameraId != std::string(reinterpret_cast<char*>(capability.driver))) {
+    if (!QemuCaptureDriverMatches(capability, cameraId)) {
         return RC_ERROR;
     }
     V4L2UvcMatchDev(GetCameraDevNameByCap(capability), devName, true);

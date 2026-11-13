@@ -24,6 +24,9 @@ config("pipe_config") {
   if (drivers_peripheral_camera_feature_usb) {
     defines += [ "CAMERA_BUILT_ON_USB" ]
   }
+  if (drivers_peripheral_camera_qemu_vivid_capture) {
+    defines += [ "QEMU_VIVID_CAPTURE_ENABLED" ]
+  }
 
   cflags_cc = [
     "-Wall",
@@ -61,10 +64,13 @@ config("weak_ffmpeg") {
 }
 
 ohos_shared_library("usb_camera_pipeline_core") {
+  camera_config_gen_dir =
+      get_label_info("$camera_path_usb/camera_config:generate_source",
+                     "target_gen_dir")
   sources = [
     "$camera_path_usb/adapter/platform/v4l2/src/pipeline_core/nodes/uvc_node/uvc_node.cpp",
-    "$camera_path_usb/pipeline_core/pipeline_impl/src/strategy/config/config.c",
-    "$camera_path_usb/pipeline_core/pipeline_impl/src/strategy/config/params.c",
+    "$camera_config_gen_dir/config.c",
+    "$camera_config_gen_dir/params.c",
     "$camera_path_usb/pipeline_core/src/mjpeg_decoder/mjpeg_decoder.cpp",
     "$camera_path_usb/pipeline_core/src/node/codec_node.cpp",
     "$camera_path_usb/pipeline_core/src/node/exif_node.cpp",
@@ -96,6 +102,7 @@ ohos_shared_library("usb_camera_pipeline_core") {
     "$camera_path_vdi/pipeline_core/src/pipeline_core.cpp",
   ]
   include_dirs = [
+    camera_config_gen_dir,
     "$camera_path_vdi/utils/exif",
     "$camera_path_usb/../interfaces/include",
     "$camera_path_usb/../interfaces/hdi_ipc",
@@ -143,8 +150,7 @@ ohos_shared_library("usb_camera_pipeline_core") {
 
   deps = [
     "$camera_path_usb/buffer_manager:usb_camera_buffer_manager",
-    "$camera_path_usb/camera_config:config.c",
-    "$camera_path_usb/camera_config:params.c",
+    "$camera_path_usb/camera_config:generate_source",
     "$camera_path_usb/device_manager:usb_camera_device_manager",
     "$camera_path_usb/metadata_manager:usb_camera_metadata_manager",
     "$camera_path_vdi/utils:peripheral_camera_utils",

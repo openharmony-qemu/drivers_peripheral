@@ -762,61 +762,68 @@ static void LogErrorCapture(AudioHandle handle, int errorCode, int reason)
 int32_t AudioCaptureCaptureFrame(
     struct IAudioCapture *capture, int8_t *frame, uint32_t *frameLen, uint64_t *replyBytes)
 {
+    if (replyBytes != NULL) {
+        *replyBytes = 0;
+    }
     struct AudioHwCapture *hwCapture = (struct AudioHwCapture *)capture;
-    pthread_mutex_lock(&hwCapture->captureParam.frameCaptureMode.mutex);
-    if (hwCapture == NULL || frame == NULL || frameLen == NULL || hwCapture->devDataHandle == NULL ||
-        hwCapture->captureParam.frameCaptureMode.buffer == NULL) {
-        AUDIO_FUNC_LOGE("Param is NULL Fail!");
+    if (hwCapture == NULL || frame == NULL || frameLen == NULL || replyBytes == NULL || *frameLen == 0) {
         return AUDIO_ERR_INVALID_PARAM;
     }
-
+    uint64_t capacity = *frameLen < FRAME_DATA ? *frameLen : FRAME_DATA;
+    int32_t result = AUDIO_ERR_INTERNAL;
+    int32_t readResult = 0;
+    struct AudioTimeStamp nextTime;
+    pthread_mutex_lock(&hwCapture->captureParam.frameCaptureMode.mutex);
+    // Stop and Read share this mutex. Validate the stopped buffer only after locking,
+    // and release the mutex on every error, including a Read arriving after Stop.
+    hwCapture->captureParam.frameCaptureMode.bufferSize = 0;
+    hwCapture->captureParam.frameCaptureMode.bufferFrameSize = 0;
+    if (hwCapture->devDataHandle == NULL || hwCapture->captureParam.frameCaptureMode.buffer == NULL) {
+        result = AUDIO_ERR_INVALID_PARAM;
+        goto EXIT;
+    }
+    if (hwCapture->captureParam.frameCaptureMode.attrs.sampleRate == 0) {
+        goto EXIT;
+    }
     InterfaceLibModeCapturePassthrough *pInterfaceLibModeCapture = AudioPassthroughGetInterfaceLibModeCapture();
     if (pInterfaceLibModeCapture == NULL || *pInterfaceLibModeCapture == NULL) {
-        pthread_mutex_unlock(&hwCapture->captureParam.frameCaptureMode.mutex);
-        AUDIO_FUNC_LOGE("pInterfaceLibModeCapture Fail!");
-        return AUDIO_ERR_INTERNAL;
+        goto EXIT;
     }
-
-    int32_t ret =
-        (*pInterfaceLibModeCapture)(hwCapture->devDataHandle, &hwCapture->captureParam, AUDIO_DRV_PCM_IOCTL_READ);
-    if (ret < 0) {
-        pthread_mutex_unlock(&hwCapture->captureParam.frameCaptureMode.mutex);
-        AUDIO_FUNC_LOGE("Capture Frame FAIL! ret=%{public}d", ret);
-        LogErrorCapture(capture, WRITE_FRAME_ERROR_CODE, ret);
-        return AUDIO_ERR_INTERNAL;
+    // Internal READ contract: bufferSize is IN caller capacity, OUT actual bytes.
+    // The public HDI signature, frameLen input and frame structure layout are unchanged.
+    hwCapture->captureParam.frameCaptureMode.bufferSize = capacity;
+    readResult = (*pInterfaceLibModeCapture)(hwCapture->devDataHandle, &hwCapture->captureParam, AUDIO_DRV_PCM_IOCTL_READ);
+    if (readResult < 0 || hwCapture->captureParam.frameCaptureMode.bufferSize == 0 ||
+        hwCapture->captureParam.frameCaptureMode.bufferSize > capacity ||
+        hwCapture->captureParam.frameCaptureMode.bufferFrameSize == 0 ||
+        hwCapture->captureParam.frameCaptureMode.bufferFrameSize >
+            UINT64_MAX - hwCapture->captureParam.frameCaptureMode.frames) {
+        goto EXIT;
     }
-    if (*frameLen < hwCapture->captureParam.frameCaptureMode.bufferSize) {
-        pthread_mutex_unlock(&hwCapture->captureParam.frameCaptureMode.mutex);
-        AUDIO_FUNC_LOGE("CaptureframeLen too little! frameLen=%{public}u, bufferSize=%{public}" PRIu64,
-            *frameLen, hwCapture->captureParam.frameCaptureMode.bufferSize);
-        return AUDIO_ERR_INTERNAL;
-    }
-
-    ret = memcpy_s(frame, (size_t)*frameLen, hwCapture->captureParam.frameCaptureMode.buffer,
-        (size_t)hwCapture->captureParam.frameCaptureMode.bufferSize);
-    if (ret != EOK) {
-        pthread_mutex_unlock(&hwCapture->captureParam.frameCaptureMode.mutex);
-        AUDIO_FUNC_LOGE("memcpy_s fail");
-        return AUDIO_ERR_INTERNAL;
-    }
-
-    *replyBytes = (uint32_t)hwCapture->captureParam.frameCaptureMode.bufferSize;
-
-    hwCapture->captureParam.frameCaptureMode.frames += hwCapture->captureParam.frameCaptureMode.bufferFrameSize;
-    if (hwCapture->captureParam.frameCaptureMode.attrs.sampleRate == 0) {
-        pthread_mutex_unlock(&hwCapture->captureParam.frameCaptureMode.mutex);
-        AUDIO_FUNC_LOGE("Divisor cannot be zero!");
-        return AUDIO_ERR_INTERNAL;
-    }
-    if (TimeToAudioTimeStamp(hwCapture->captureParam.frameCaptureMode.bufferFrameSize,
-        &hwCapture->captureParam.frameCaptureMode.time,
+    nextTime = hwCapture->captureParam.frameCaptureMode.time;
+    if (TimeToAudioTimeStamp(hwCapture->captureParam.frameCaptureMode.bufferFrameSize, &nextTime,
         hwCapture->captureParam.frameCaptureMode.attrs.sampleRate) == HDF_FAILURE) {
-        pthread_mutex_unlock(&hwCapture->captureParam.frameCaptureMode.mutex);
-        AUDIO_FUNC_LOGE("Frame is NULL");
-        return AUDIO_ERR_INTERNAL;
+        goto EXIT;
+    }
+    if (memcpy_s(frame, (size_t)*frameLen, hwCapture->captureParam.frameCaptureMode.buffer,
+        (size_t)hwCapture->captureParam.frameCaptureMode.bufferSize) != EOK) {
+        goto EXIT;
+    }
+    // Commit only a bounded, copied, real read. Errors cannot publish stale bytes or clocks.
+    hwCapture->captureParam.frameCaptureMode.frames += hwCapture->captureParam.frameCaptureMode.bufferFrameSize;
+    hwCapture->captureParam.frameCaptureMode.time = nextTime;
+    *replyBytes = hwCapture->captureParam.frameCaptureMode.bufferSize;
+    result = AUDIO_SUCCESS;
+EXIT:
+    if (result != AUDIO_SUCCESS) {
+        hwCapture->captureParam.frameCaptureMode.bufferSize = 0;
+        hwCapture->captureParam.frameCaptureMode.bufferFrameSize = 0;
     }
     pthread_mutex_unlock(&hwCapture->captureParam.frameCaptureMode.mutex);
-    return AUDIO_SUCCESS;
+    if (readResult < 0) {
+        LogErrorCapture(capture, WRITE_FRAME_ERROR_CODE, readResult);
+    }
+    return result;
 }
 
 int32_t AudioCaptureGetCapturePosition(struct IAudioCapture *capture, uint64_t *frames, struct AudioTimeStamp *time)

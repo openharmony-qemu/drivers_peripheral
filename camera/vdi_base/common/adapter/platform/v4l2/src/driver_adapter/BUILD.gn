@@ -61,7 +61,7 @@ config("v4l2_config") {
 }
 
 ohos_shared_library("peripheral_camera_v4l2_adapter") {
-  if (!is_emulator) {
+  if (!is_emulator || !defined(defines)) {
     defines = []
   }
   if (drivers_peripheral_camera_feature_usb) {

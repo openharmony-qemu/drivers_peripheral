@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 #include "capture_message.h"
+#include <algorithm>
 
 namespace OHOS::Camera {
 ICaptureMessage::ICaptureMessage(int32_t streamId, int32_t captureId, uint64_t time, uint32_t count)
@@ -74,6 +75,13 @@ void CaptureMessageOperator::SendMessage(std::shared_ptr<ICaptureMessage>& messa
         return;
     }
 
+    if (message->GetPeerMessageCount() == 0 || message->GetCaptureId() < 0 ||
+        message->GetStreamId() < 0 || message->GetMessageType() <= CAPTURE_MESSAGE_TYPE_INVALID ||
+        message->GetMessageType() >= CAPTURE_MESSAGE_TYPE_MAX) {
+        CAMERA_LOGE("invalid capture message");
+        return;
+    }
+
     CAMERA_LOGV("%{public}s, %{public}d, enter", __FUNCTION__, __LINE__);
     std::unique_lock<std::mutex> l(lock_);
     CAMERA_LOGV("%{public}s, %{public}d, enter", __FUNCTION__, __LINE__);
@@ -94,8 +102,17 @@ void CaptureMessageOperator::SendMessage(std::shared_ptr<ICaptureMessage>& messa
                 CAMERA_LOGE("unknown error, message is null");
                 continue;
             }
-            if (message->GetTimestamp() == mit[0]->GetTimestamp() &&
-                message->GetMessageType() == mit[0]->GetMessageType()) {
+            if (message->GetCaptureId() == mit[0]->GetCaptureId() &&
+                message->GetTimestamp() == mit[0]->GetTimestamp() &&
+                message->GetMessageType() == mit[0]->GetMessageType() &&
+                message->GetPeerMessageCount() == mit[0]->GetPeerMessageCount()) {
+                auto peer = std::find_if(mit.begin(), mit.end(), [&message](const auto& queued) {
+                    return queued != nullptr && queued->GetStreamId() == message->GetStreamId();
+                });
+                if (peer != mit.end()) {
+                    isPeerMessage = true;
+                    break;
+                }
                 mit.emplace_back(message);
                 if (mit.size() == mit[0]->GetPeerMessageCount()) {
                     wakeup_ = true;

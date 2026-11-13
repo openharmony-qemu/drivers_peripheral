@@ -42,6 +42,7 @@ if (drivers_peripheral_camera_v4l2_emulator) {
 
 declare_args() {
   drivers_peripheral_camera_feature_usb = false
+  drivers_peripheral_camera_qemu_vivid_capture = false
 }
 
 declare_args() {

@@ -855,9 +855,87 @@ static int32_t AudioRenderRenderFramSplit(struct AudioHwRender *hwRender)
     return HDF_SUCCESS;
 }
 
+#ifdef ALSA_LIB_MODE
+static int32_t AudioRenderRenderFrameAccepted(
+    struct IAudioRender *render, const int8_t *frame, uint32_t frameLen, uint64_t *replyBytes)
+{
+    if (replyBytes == NULL) {
+        return AUDIO_ERR_INVALID_PARAM;
+    }
+    *replyBytes = 0;
+    struct AudioHwRender *hwRender = (struct AudioHwRender *)render;
+    if (hwRender == NULL || frame == NULL || frameLen > FRAME_DATA) {
+        return AUDIO_ERR_INVALID_PARAM;
+    }
+    pthread_mutex_lock(&hwRender->renderParam.frameRenderMode.mutex);
+    struct AudioFrameRenderMode *mode = &hwRender->renderParam.frameRenderMode;
+    if (hwRender->writeAcceptanceUncertain) {
+        pthread_mutex_unlock(&mode->mutex);
+        return AUDIO_ERR_INTERNAL;
+    }
+    uint32_t formatBits = 0;
+    if (mode->buffer == NULL || mode->attrs.sampleRate == 0 ||
+        FormatToBits(mode->attrs.format, &formatBits) != HDF_SUCCESS ||
+        formatBits == 0 || formatBits > 64 || formatBits % PCM_8_BIT != 0 ||
+        mode->attrs.channelCount == 0 || mode->attrs.channelCount > 4) {
+        pthread_mutex_unlock(&mode->mutex);
+        return AUDIO_ERR_INVALID_PARAM;
+    }
+    uint32_t frameBytes = mode->attrs.channelCount * (formatBits / PCM_8_BIT);
+    uint32_t requestedFrames = frameLen / frameBytes;
+    if (frameLen % frameBytes != 0 || mode->frames > UINT64_MAX - requestedFrames) {
+        pthread_mutex_unlock(&mode->mutex);
+        return AUDIO_ERR_INVALID_PARAM;
+    }
+    int32_t ret = memcpy_s(mode->buffer, FRAME_DATA, frame, frameLen);
+    if (ret != EOK) {
+        pthread_mutex_unlock(&mode->mutex);
+        return AUDIO_ERR_INTERNAL;
+    }
+    mode->bufferSize = frameLen;
+    mode->bufferFrameSize = requestedFrames;
+    /* A matched adapter replaces the sentinel even on an error. */
+    hwRender->renderParam.writeAcceptedBytes = UINT64_MAX;
+    hwRender->renderParam.writeRetryable = false;
+    ret = AudioRenderRenderFramSplit(hwRender);
+    uint64_t acceptedBytes = hwRender->renderParam.writeAcceptedBytes;
+    if (acceptedBytes > frameLen || acceptedBytes % frameBytes != 0) {
+        /* Only a newly allocated render instance may clear this uncertainty.
+         * Never expose an invalid count or replay an unknown accepted prefix. */
+        hwRender->writeAcceptanceUncertain = true;
+        pthread_mutex_unlock(&mode->mutex);
+        AUDIO_FUNC_LOGE("Invalid accepted render byte count");
+        return AUDIO_ERR_INTERNAL;
+    }
+    uint32_t acceptedFrames = (uint32_t)(acceptedBytes / frameBytes);
+    *replyBytes = acceptedBytes;
+    mode->frames += acceptedFrames;
+    if (acceptedFrames != 0 && TimeToAudioTimeStamp(acceptedFrames, &mode->time,
+        mode->attrs.sampleRate) == HDF_FAILURE) {
+        AUDIO_FUNC_LOGE("Accepted render prefix timestamp update failed");
+        ret = AUDIO_ERR_INTERNAL;
+    }
+    if (ret == HDF_SUCCESS && acceptedBytes != frameLen) {
+        ret = AUDIO_ERR_INTERNAL;
+    }
+    bool retryable = hwRender->renderParam.writeRetryable;
+    pthread_mutex_unlock(&mode->mutex);
+    /* The generated HDI stub serializes replyBytes only on success. Positive
+     * prefixes and confirmed retryable zero must cross that boundary intact;
+     * the raw backend status was retained by AudioRenderRenderFramSplit. */
+    if (acceptedBytes != 0 || retryable) {
+        return AUDIO_SUCCESS;
+    }
+    return ret < 0 ? AUDIO_ERR_INTERNAL : AUDIO_SUCCESS;
+}
+#endif
+
 int32_t AudioRenderRenderFrame(
     struct IAudioRender *render, const int8_t *frame, uint32_t frameLen, uint64_t *replyBytes)
 {
+#ifdef ALSA_LIB_MODE
+    return AudioRenderRenderFrameAccepted(render, frame, frameLen, replyBytes);
+#else
     struct AudioHwRender *hwRender = (struct AudioHwRender *)render;
     if (hwRender == NULL || frame == NULL || replyBytes == NULL) {
         AUDIO_FUNC_LOGE("Render Frame Paras is NULL!");
@@ -913,6 +991,7 @@ int32_t AudioRenderRenderFrame(
         return AUDIO_ERR_INTERNAL;
     }
     return AUDIO_SUCCESS;
+#endif
 }
 
 int32_t AudioRenderGetRenderPosition(struct IAudioRender *render, uint64_t *frames, struct AudioTimeStamp *time)

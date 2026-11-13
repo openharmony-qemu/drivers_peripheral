@@ -15,6 +15,7 @@
     "features": [
       "drivers_peripheral_sensor_feature_model",
       "drivers_peripheral_sensor_feature_community",
+      "drivers_peripheral_sensor_feature_qemu_external",
       "drivers_peripheral_sensor_feature_lite_support_test",
       "drivers_peripheral_sensor_feature_tv_flag"
     ],

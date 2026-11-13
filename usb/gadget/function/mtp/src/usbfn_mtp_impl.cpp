@@ -14,6 +14,9 @@
  */
 
 #include "usbfn_mtp_impl.h"
+#ifdef USB_QEMU_STANDARD_FUNCTIONFS
+#include "qemu_mtp_functionfs.h"
+#endif
 #include <unistd.h>
 #include <cinttypes>
 #include <string>
@@ -103,7 +106,11 @@ extern "C" void *UsbfnMtpInterfaceImplGetInstance(void)
 {
     std::lock_guard<std::mutex> guard(g_instanceLock);
     if (g_instance == nullptr) {
+#ifdef USB_QEMU_STANDARD_FUNCTIONFS
+        sptr<IUsbfnMtpInterface> tmp(new (std::nothrow) QemuMtpFunctionFS);
+#else
         sptr<IUsbfnMtpInterface> tmp(new (std::nothrow) UsbfnMtpImpl);
+#endif
         g_instance = tmp;
     }
 

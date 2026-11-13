@@ -96,6 +96,15 @@ RetCode CaptureRequest::Cancel()
     return RC_OK;
 }
 
+bool CaptureRequest::TryMarkCaptureEnded(int32_t streamId)
+{
+    std::lock_guard<std::mutex> l(lock_);
+    if (owners_.find(streamId) == owners_.end()) {
+        return false;
+    }
+    return endedStreams_.insert(streamId).second;
+}
+
 uint64_t CaptureRequest::GetBeginTime() const
 {
     return semp_->timestamp_;

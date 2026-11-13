@@ -22,8 +22,18 @@ ohos_shared_library("libhdi_sensor_impl") {
     "../hal/include",
   ]
 
-  sources = [ "sensor_impl.cpp" ]
-  deps = [ "../hal:hdi_sensor" ]
+  if (drivers_peripheral_sensor_feature_qemu_external) {
+    sources = [
+      "qemu_sensor_input.cpp",
+      "qemu_rotation_input.cpp",
+      "qemu_headposture_input.cpp",
+      "qemu_sensor_vdi.cpp",
+    ]
+    deps = []
+  } else {
+    sources = [ "sensor_impl.cpp" ]
+    deps = [ "../hal:hdi_sensor" ]
+  }
 
   cflags = [
     "-Wall",
